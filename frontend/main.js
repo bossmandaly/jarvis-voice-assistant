@@ -26,7 +26,7 @@ function connect() {
     ws = new WebSocket(`ws://${location.host}/ws`);
     ws.onopen = () => {
         console.log('[jarvis] WebSocket connected');
-        status.textContent = 'Klicke einmal irgendwo, dann spricht Jarvis.';
+        status.textContent = 'Click anywhere once, then Jarvis will speak.';
         setOrbState('thinking');
         ws.send(JSON.stringify({ text: 'Jarvis activate' }));
     };
@@ -45,7 +45,7 @@ function connect() {
         }
     };
     ws.onclose = () => {
-        status.textContent = 'Verbindung verloren...';
+        status.textContent = 'Connection lost...';
         setTimeout(connect, 3000);
     };
 }
@@ -80,7 +80,7 @@ function playNext() {
     audio.onerror = () => { URL.revokeObjectURL(url); playNext(); };
     audio.play().catch(err => {
         console.warn('[jarvis] Autoplay blocked, waiting for click...');
-        status.textContent = 'Klicke irgendwo damit Jarvis sprechen kann.';
+        status.textContent = 'Click anywhere so Jarvis can speak.';
         setOrbState('idle');
         // Wait for click then retry
         document.addEventListener('click', function retry() {
@@ -100,7 +100,7 @@ let isListening = false;
 
 if (SpeechRecognition) {
     recognition = new SpeechRecognition();
-    recognition.lang = 'de-DE';
+    recognition.lang = 'en-US';
     recognition.continuous = true;
     recognition.interimResults = false;
 
@@ -111,7 +111,7 @@ if (SpeechRecognition) {
             if (text) {
                 addTranscript('user', text);
                 setOrbState('thinking');
-                status.textContent = 'Jarvis denkt nach...';
+                status.textContent = 'Jarvis is thinking...';
                 ws.send(JSON.stringify({ text }));
             }
         }
@@ -148,7 +148,7 @@ orb.addEventListener('click', () => {
         recognition.stop();
         isListening = false;
         setOrbState('idle');
-        status.textContent = 'Pausiert. Klicke zum Fortsetzen.';
+        status.textContent = 'Paused. Click to resume.';
     } else {
         startListening();
     }
@@ -159,7 +159,7 @@ function setOrbState(state) { orb.className = state; }
 function addTranscript(role, text) {
     const div = document.createElement('div');
     div.className = role;
-    div.textContent = role === 'user' ? `Du: ${text}` : `Jarvis: ${text}`;
+    div.textContent = role === 'user' ? `You: ${text}` : `Jarvis: ${text}`;
     transcript.appendChild(div);
     transcript.scrollTop = transcript.scrollHeight;
 }

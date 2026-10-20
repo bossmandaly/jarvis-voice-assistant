@@ -24,10 +24,12 @@ with open(CONFIG_PATH, "r") as f:
 
 ANTHROPIC_API_KEY = config["anthropic_api_key"]
 ELEVENLABS_API_KEY = config["elevenlabs_api_key"]
-ELEVENLABS_VOICE_ID = config.get("elevenlabs_voice_id", "rDmv3mOhK6TnhYWckFaD")
-USER_NAME = config.get("user_name", "Julian")
-USER_ADDRESS = config.get("user_address", "Sir")
-CITY = config.get("city", "Hamburg")
+ELEVENLABS_VOICE_ID = config.get("elevenlabs_voice_id", "JBFqnCBsd6RMkjVDRZzb")
+USER_NAME = config.get("user_name", "Boss")
+USER_ROLE = config.get("user_role", "")
+USER_ADDRESS = config.get("user_address", "Boss")
+CITY = config.get("city", "New York")
+METRIC = config.get("units", "imperial") == "metric"
 TASKS_FILE = config.get("obsidian_inbox_path", "")
 
 ai = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
@@ -48,11 +50,11 @@ def get_weather_sync():
         data = json.loads(resp.read())
         c = data["current_condition"][0]
         return {
-            "temp": c["temp_C"],
-            "feels_like": c["FeelsLikeC"],
+            "temp": c["temp_C"] if METRIC else c["temp_F"],
+            "feels_like": c["FeelsLikeC"] if METRIC else c["FeelsLikeF"],
+            "unit": "°C" if METRIC else "°F",
             "description": c["weatherDesc"][0]["value"],
             "humidity": c["humidity"],
-            "wind_kmh": c["windspeedKmph"],
         }
     except:
         return None
@@ -76,8 +78,8 @@ def refresh_data():
     global WEATHER_INFO, TASKS_INFO
     WEATHER_INFO = get_weather_sync()
     TASKS_INFO = get_tasks_sync()
-    print(f"[jarvis] Wetter: {WEATHER_INFO}", flush=True)
-    print(f"[jarvis] Tasks: {len(TASKS_INFO)} geladen", flush=True)
+    print(f"[jarvis] Weather: {WEATHER_INFO}", flush=True)
+    print(f"[jarvis] Tasks: {len(TASKS_INFO)} loaded", flush=True)
 
 WEATHER_INFO = ""
 TASKS_INFO = []
@@ -92,31 +94,33 @@ def build_system_prompt():
     weather_block = ""
     if WEATHER_INFO:
         w = WEATHER_INFO
-        weather_block = f"\nWetter {CITY}: {w['temp']}°C, gefuehlt {w['feels_like']}°C, {w['description']}"
+        weather_block = f"\nWeather in {CITY}: {w['temp']}{w['unit']}, feels like {w['feels_like']}{w['unit']}, {w['description']}"
 
     task_block = ""
     if TASKS_INFO:
-        task_block = f"\nOffene Aufgaben ({len(TASKS_INFO)}): " + ", ".join(TASKS_INFO[:5])
+        task_block = f"\nOpen tasks ({len(TASKS_INFO)}): " + ", ".join(TASKS_INFO[:5])
 
-    return f"""Du bist Jarvis, der KI-Assistent von Tony Stark aus Iron Man. Dein Dienstherr ist Julian, ein KI-Berater und Automatisierungsexperte. Du sprichst ausschliesslich Deutsch. Julian moechte mit "Sir" angesprochen und gesiezt werden. Nutze "Sie" als Pronomen — FALSCH: "Sir planen", RICHTIG: "Sie planen, Sir". Dein Ton ist trocken, sarkastisch und britisch-hoeflich - wie ein Butler der alles gesehen hat und trotzdem loyal bleibt. Du machst subtile, trockene Bemerkungen, bist aber niemals respektlos. Wenn Sir eine offensichtliche Frage stellt, darfst du mit elegantem Sarkasmus antworten. Du bist hochintelligent, effizient und immer einen Schritt voraus. Halte deine Antworten kurz - maximal 3 Saetze. Du kommentierst fragwuerdige Entscheidungen hoeflich aber spitz.
+    role = f", {USER_ROLE}" if USER_ROLE else ""
 
-WICHTIG: Schreibe NIEMALS Regieanweisungen, Emotionen oder Tags in eckigen Klammern wie [sarcastic] [formal] [amused] [dry] oder aehnliches. Dein Sarkasmus muss REIN durch die Wortwahl kommen. Alles was du schreibst wird laut vorgelesen.
+    return f"""You are Jarvis, Tony Stark's AI assistant from Iron Man. You work for {USER_NAME}{role}. You speak English only. Always address them as "{USER_ADDRESS}". Your tone is dry, sarcastic and politely British, like a butler who has seen everything and stays loyal anyway. You make subtle, dry remarks but are never disrespectful. When {USER_ADDRESS} asks an obvious question, you may answer with elegant sarcasm. You are highly intelligent, efficient and always one step ahead. Keep answers short, 3 sentences at most. You comment on questionable decisions politely but pointedly.
 
-Du hast die volle Kontrolle ueber den Browser von Julian. Du kannst im Internet suchen, Webseiten oeffnen und den Bildschirm sehen. Wenn Sir dich bittet etwas nachzuschauen, zu recherchieren, zu googeln, eine Seite zu oeffnen, oder irgendetwas im Internet zu tun — nutze IMMER eine Aktion. Frag nicht ob du es tun sollst, tu es einfach.
+IMPORTANT: NEVER write stage directions, emotions or tags in square brackets like [sarcastic] [formal] [amused] [dry]. Your sarcasm must come purely from word choice. Everything you write is read aloud.
 
-AKTIONEN - Schreibe die passende Aktion ans ENDE deiner Antwort. Der Text VOR der Aktion wird vorgelesen, die Aktion selbst wird still ausgefuehrt.
-[ACTION:SEARCH] suchbegriff - Internet durchsuchen und Ergebnisse zusammenfassen
-[ACTION:OPEN] url - URL im Browser oeffnen
-[ACTION:SCREEN] - Bildschirm ansehen und beschreiben. WICHTIG: Bei SCREEN schreibe NUR die Aktion, KEINEN Text davor. Also NUR "[ACTION:SCREEN]" und sonst nichts.
-[ACTION:NEWS] - Aktuelle Weltnachrichten abrufen. Nutze diese Aktion wenn nach News, Nachrichten, was in der Welt passiert, aktuelle Lage oder Weltgeschehen gefragt wird. Schreibe einen kurzen Satz davor wie "Ich schaue nach den aktuellen Nachrichten."
+You have full control of {USER_NAME}'s browser. You can search the internet, open websites and see the screen. When {USER_ADDRESS} asks you to look something up, research, google, open a page, or do anything on the internet, ALWAYS use an action. Don't ask whether you should, just do it.
 
-WENN Julian "Jarvis activate" sagt:
-- Begruesse ihn passend zur Tageszeit (aktuelle Zeit: {{time}}).
-- Gebe eine kurze Info ueber das Wetter — Temperatur und ob Sonne/klar/bewoelkt/Regen, und wie es sich anfuehlt. Keine Luftfeuchtigkeit.
-- Fasse die Aufgaben kurz als Ueberblick in einem Satz zusammen, ohne dabei jede einzelne Aufgabe einfach vorzulesen. Gebe gerne einen humorvollen Kommentar am Ende an.
-- Sei kreativ bei der Begruessung.
+ACTIONS - Put the matching action at the END of your answer. The text BEFORE the action is read aloud; the action itself runs silently.
+[ACTION:SEARCH] search terms - Search the internet and summarize the results
+[ACTION:OPEN] url - Open a URL in the browser
+[ACTION:SCREEN] - Look at the screen and describe it. IMPORTANT: For SCREEN write ONLY the action, NO text before it. So ONLY "[ACTION:SCREEN]" and nothing else.
+[ACTION:NEWS] - Get current world news. Use this when asked about news, what's happening in the world, or current events. Write a short sentence before it like "Let me check the latest news."
 
-=== AKTUELLE DATEN ==={weather_block}{task_block}
+WHEN {USER_NAME} says "Jarvis activate":
+- Greet them for the time of day (current time: {{time}}).
+- Give a short weather update: temperature, whether it's sunny/clear/cloudy/rainy, and how it feels. No humidity.
+- Summarize the tasks in one overview sentence without reading each one out. Feel free to end with a humorous comment.
+- Be creative with the greeting.
+
+=== CURRENT DATA ==={weather_block}{task_block}
 ==="""
 
 
@@ -183,18 +187,18 @@ async def execute_action(action: dict) -> str:
     if t == "SEARCH":
         result = await browser_tools.search_and_read(p)
         if "error" not in result:
-            return f"Seite: {result.get('title', '')}\nURL: {result.get('url', '')}\n\n{result.get('content', '')[:2000]}"
-        return f"Suche fehlgeschlagen: {result.get('error', '')}"
+            return f"Page: {result.get('title', '')}\nURL: {result.get('url', '')}\n\n{result.get('content', '')[:2000]}"
+        return f"Search failed: {result.get('error', '')}"
 
     elif t == "BROWSE":
         result = await browser_tools.visit(p)
         if "error" not in result:
-            return f"Seite: {result.get('title', '')}\n\n{result.get('content', '')[:2000]}"
-        return f"Seite nicht erreichbar: {result.get('error', '')}"
+            return f"Page: {result.get('title', '')}\n\n{result.get('content', '')[:2000]}"
+        return f"Page unreachable: {result.get('error', '')}"
 
     elif t == "OPEN":
         await browser_tools.open_url(p)
-        return f"Geoeffnet: {p}"
+        return f"Opened: {p}"
 
     elif t == "SCREEN":
         return await screen_capture.describe_screen(ai)
@@ -247,7 +251,7 @@ async def process_message(session_id: str, user_text: str, ws: WebSocket):
 
         # Quick voice feedback for SCREEN so user knows Jarvis is working
         if action["type"] == "SCREEN":
-            hint = "Lassen Sie mich einen Blick auf Ihren Bildschirm werfen."
+            hint = f"Let me take a look at your screen, {USER_ADDRESS}."
             hint_audio = await synthesize_speech(hint)
             await ws.send_json({
                 "type": "response",
@@ -260,24 +264,24 @@ async def process_message(session_id: str, user_text: str, ws: WebSocket):
             print(f"  Result: {action_result}", flush=True)
         except Exception as e:
             print(f"  Action error: {e}", flush=True)
-            action_result = f"Fehler: {e}"
+            action_result = f"Search failed: {e}"
 
         if action["type"] == "OPEN":
             # Just opened browser, nothing to summarize
             return
 
         # SEARCH, BROWSE, SCREEN — summarize results
-        if action_result and "fehlgeschlagen" not in action_result:
+        if action_result and "failed" not in action_result and "unreachable" not in action_result:
             summary_resp = await ai.messages.create(
                 model="claude-haiku-4-5-20251001",
                 max_tokens=250,
-                system=f"Du bist Jarvis. Fasse die folgenden Informationen KURZ auf Deutsch zusammen, maximal 3 Saetze, im Jarvis-Stil. Sprich den Nutzer als {USER_ADDRESS} an. KEINE Tags in eckigen Klammern. KEINE ACTION-Tags.",
-                messages=[{"role": "user", "content": f"Fasse zusammen:\n\n{action_result}"}],
+                system=f"You are Jarvis. Summarize the following information BRIEFLY in English, 3 sentences at most, in Jarvis style. Address the user as {USER_ADDRESS}. NO tags in square brackets. NO ACTION tags.",
+                messages=[{"role": "user", "content": f"Summarize:\n\n{action_result}"}],
             )
             summary = summary_resp.content[0].text
             summary, _ = extract_action(summary)
         else:
-            summary = f"Das hat leider nicht funktioniert, {USER_ADDRESS}."
+            summary = f"I'm afraid that didn't work, {USER_ADDRESS}."
 
         audio2 = await synthesize_speech(summary)
         conversations[session_id].append({"role": "assistant", "content": summary})
@@ -322,4 +326,5 @@ if __name__ == "__main__":
     print("  J.A.R.V.I.S. V2 Server", flush=True)
     print(f"  http://localhost:8340", flush=True)
     print("=" * 50, flush=True)
-    uvicorn.run(app, host="0.0.0.0", port=8340)
+    # Local only: anyone who can reach this port can drive the browser and see the screen
+    uvicorn.run(app, host="127.0.0.1", port=8340)

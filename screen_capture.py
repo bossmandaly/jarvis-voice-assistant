@@ -37,7 +37,7 @@ async def describe_screen(anthropic_client) -> str:
                 },
                 {
                     "type": "text",
-                    "text": "Beschreibe kurz auf Deutsch was auf diesem Bildschirm zu sehen ist. Maximal 2-3 Saetze. Nenne die wichtigsten offenen Programme und Inhalte.",
+                    "text": "Briefly describe in English what is on this screen. 2-3 sentences at most. Name the main open programs and content.",
                 },
             ],
         }],

@@ -1,0 +1,14 @@
+{
+  "anthropic_api_key": "PASTE_YOUR_ANTHROPIC_KEY_HERE",
+  "elevenlabs_api_key": "PASTE_YOUR_ELEVENLABS_KEY_HERE",
+  "elevenlabs_voice_id": "JBFqnCBsd6RMkjVDRZzb",
+  "user_name": "YOUR_FIRST_NAME",
+  "user_role": "",
+  "user_address": "Boss",
+  "city": "YOUR_CITY",
+  "units": "imperial",
+  "spotify_track": "",
+  "browser_url": "",
+  "obsidian_inbox_path": "",
+  "apps": []
+}

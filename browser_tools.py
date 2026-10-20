@@ -4,6 +4,7 @@ Web search via DuckDuckGo Lite, page visits via Playwright, URL opening.
 """
 
 import re
+import sys
 import webbrowser
 import subprocess
 from urllib.parse import unquote, parse_qs, urlparse
@@ -16,6 +17,9 @@ _context = None
 
 def _bring_chromium_to_front():
     """Bring the Playwright Chromium window to the foreground on Windows."""
+    # macOS: Playwright opens its window in front already
+    if sys.platform != "win32":
+        return
     try:
         subprocess.run([
             "powershell", "-Command",
@@ -75,7 +79,7 @@ async def search_and_read(query: str) -> dict:
             """)
             return {"title": title, "url": url, "content": text[:3000]}
         else:
-            return {"title": "Keine Ergebnisse", "url": search_url, "content": "Keine Ergebnisse gefunden."}
+            return {"title": "No results", "url": search_url, "content": "No results found."}
     except Exception as e:
         return {"error": str(e), "url": query}
     finally:
@@ -119,9 +123,9 @@ async def fetch_news() -> str:
         text = await page.evaluate("() => document.body.innerText")
         # Extract the news sections
         content = text[:4000]
-        return f"World Monitor Nachrichten:\n{content}"
+        return f"World Monitor news:\n{content}"
     except Exception as e:
-        return f"News konnten nicht geladen werden: {e}"
+        return f"News failed to load: {e}"
     finally:
         pass  # Keep page open so user can see it
 
