@@ -298,6 +298,19 @@ async def process_message(session_id: str, user_text: str, ws: WebSocket):
         })
 
 
+def explain_error(e: Exception) -> str:
+    msg = str(e).lower()
+    if isinstance(e, anthropic.AuthenticationError):
+        return "Problem: your Anthropic API key isn't working. Check anthropic_api_key in config.json, then restart the server."
+    if "credit balance" in msg:
+        return "Problem: your Anthropic account is out of credit. Add credit at console.anthropic.com."
+    if isinstance(e, anthropic.RateLimitError):
+        return "Problem: too many requests to Anthropic. Wait a minute and try again."
+    if isinstance(e, (anthropic.APIConnectionError, httpx.ConnectError)):
+        return "Problem: can't reach Anthropic. Check your internet connection."
+    return f"Problem: {type(e).__name__}: {e}"
+
+
 @app.websocket("/ws")
 async def websocket_endpoint(ws: WebSocket):
     await ws.accept()
@@ -312,7 +325,14 @@ async def websocket_endpoint(ws: WebSocket):
                 continue
 
             print(f"  You:    {user_text}", flush=True)
-            await process_message(session_id, user_text, ws)
+            try:
+                await process_message(session_id, user_text, ws)
+            except WebSocketDisconnect:
+                raise
+            except Exception as e:
+                # Keep the connection open and say what went wrong instead of dropping it
+                print(f"  ERROR: {type(e).__name__}: {e}", flush=True)
+                await ws.send_json({"type": "response", "text": explain_error(e), "audio": ""})
 
     except WebSocketDisconnect:
         conversations.pop(session_id, None)
