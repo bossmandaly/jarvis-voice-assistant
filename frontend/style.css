@@ -98,3 +98,11 @@ body {
     margin-bottom: 16px;
     font-size: 14px;
 }
+
+#version {
+    position: fixed;
+    bottom: 8px;
+    right: 12px;
+    font-size: 11px;
+    opacity: 0.4;
+}

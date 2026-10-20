@@ -318,6 +318,14 @@ async def websocket_endpoint(ws: WebSocket):
         conversations.pop(session_id, None)
 
 
+@app.middleware("http")
+async def no_cache(request, call_next):
+    # Always serve the latest page after a git pull instead of Chrome's cached copy
+    response = await call_next(request)
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "frontend")), name="static")
 
 
