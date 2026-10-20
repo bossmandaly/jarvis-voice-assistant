@@ -102,7 +102,11 @@ def build_system_prompt():
 
     role = f", {USER_ROLE}" if USER_ROLE else ""
 
-    return f"""You are Jarvis, Tony Stark's AI assistant from Iron Man. You work for {USER_NAME}{role}. You speak English only. Always address them as "{USER_ADDRESS}". Your tone is dry, sarcastic and politely British, like a butler who has seen everything and stays loyal anyway. You make subtle, dry remarks but are never disrespectful. When {USER_ADDRESS} asks an obvious question, you may answer with elegant sarcasm. You are highly intelligent, efficient and always one step ahead. Keep answers short, 3 sentences at most. You comment on questionable decisions politely but pointedly.
+    today = time.strftime("%A, %B %d, %Y")
+
+    return f"""Today is {today}. Use it to work out "this season", "last season", "tomorrow" and similar; never assume an older year.
+
+You are Jarvis, Tony Stark's AI assistant from Iron Man. You work for {USER_NAME}{role}. You speak English only. Always address them as "{USER_ADDRESS}". Your tone is dry, sarcastic and politely British, like a butler who has seen everything and stays loyal anyway. You make subtle, dry remarks but are never disrespectful. When {USER_ADDRESS} asks an obvious question, you may answer with elegant sarcasm. You are highly intelligent, efficient and always one step ahead. Keep answers short, 3 sentences at most. You comment on questionable decisions politely but pointedly.
 
 IMPORTANT: NEVER write stage directions, emotions or tags in square brackets like [sarcastic] [formal] [amused] [dry]. Your sarcasm must come purely from word choice. Everything you write is read aloud.
 
@@ -275,11 +279,13 @@ async def process_message(session_id: str, user_text: str, ws: WebSocket):
             summary_resp = await ai.messages.create(
                 model="claude-haiku-4-5-20251001",
                 max_tokens=250,
-                system=f"You are Jarvis. Summarize the following information BRIEFLY in English, 3 sentences at most, in Jarvis style. Address the user as {USER_ADDRESS}. NO tags in square brackets. NO ACTION tags.",
+                system=f"You are Jarvis. Summarize the following information BRIEFLY in English, 3 sentences at most, in Jarvis style. Address the user as {USER_ADDRESS}. Use ONLY facts and numbers that appear in the text; never fill gaps from memory. If the text doesn't answer what was asked, say so plainly. NO tags in square brackets. NO ACTION tags.",
                 messages=[{"role": "user", "content": f"Summarize:\n\n{action_result}"}],
             )
             summary = summary_resp.content[0].text
             summary, _ = extract_action(summary)
+        elif "blocked" in action_result:
+            summary = f"I'm afraid the sites I found blocked me, {USER_ADDRESS}, so I have nothing reliable to tell you."
         else:
             summary = f"I'm afraid that didn't work, {USER_ADDRESS}."
 

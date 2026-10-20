@@ -45,8 +45,37 @@ async def _get_browser():
     return _context
 
 
-async def search_and_read(query: str) -> dict:
-    """Search DuckDuckGo in visible browser, click first result, read the page."""
+_READ_TEXT = """
+    () => {
+        const selectors = ['main', 'article', '[role="main"]', '.content', '#content', 'body'];
+        for (const sel of selectors) {
+            const el = document.querySelector(sel);
+            if (el && el.innerText.trim().length > 100) {
+                return el.innerText.trim();
+            }
+        }
+        return document.body?.innerText?.trim() || '';
+    }
+"""
+
+# Pages that answer with a block screen instead of content
+_BLOCKED = re.compile(
+    r"403 forbidden|access denied|just a moment|verify you are human|"
+    r"enable javascript and cookies|request blocked|are you a robot",
+    re.IGNORECASE,
+)
+
+
+def _looks_blocked(status, title: str, text: str) -> bool:
+    if status is not None and status >= 400:
+        return True
+    if len(text) < 200:
+        return True
+    return bool(_BLOCKED.search(title) or _BLOCKED.search(text[:500]))
+
+
+async def search_and_read(query: str, tries: int = 3) -> dict:
+    """Search DuckDuckGo in visible browser and read the first result that isn't blocked."""
     ctx = await _get_browser()
     page = await ctx.new_page()
     try:
@@ -56,34 +85,33 @@ async def search_and_read(query: str) -> dict:
         _bring_chromium_to_front()
         await page.wait_for_timeout(2000)
 
-        # Click first organic result
-        first_link = page.locator('[data-testid="result-title-a"]').first
-        if await first_link.count() > 0:
-            await first_link.click()
-            await page.wait_for_timeout(3000)
+        links = page.locator('[data-testid="result-title-a"]')
+        hrefs = []
+        for i in range(min(await links.count(), tries)):
+            href = await links.nth(i).get_attribute("href")
+            if href and href.startswith("http"):
+                hrefs.append(href)
+        if not hrefs:
+            return {"error": "No results found.", "url": search_url}
 
-            # Read page content
-            title = await page.title()
-            url = page.url
-            text = await page.evaluate("""
-                () => {
-                    const selectors = ['main', 'article', '[role="main"]', '.content', '#content', 'body'];
-                    for (const sel of selectors) {
-                        const el = document.querySelector(sel);
-                        if (el && el.innerText.trim().length > 100) {
-                            return el.innerText.trim();
-                        }
-                    }
-                    return document.body?.innerText?.trim() || '';
-                }
-            """)
-            return {"title": title, "url": url, "content": text[:3000]}
-        else:
-            return {"title": "No results", "url": search_url, "content": "No results found."}
+        blocked = []
+        for href in hrefs:
+            try:
+                resp = await page.goto(href, timeout=15000, wait_until="domcontentloaded")
+                await page.wait_for_timeout(2000)
+                title = await page.title()
+                text = await page.evaluate(_READ_TEXT)
+            except Exception:
+                blocked.append(href)
+                continue
+            if _looks_blocked(resp.status if resp else None, title, text):
+                blocked.append(href)
+                continue
+            return {"title": title, "url": page.url, "content": text[:3000]}
+
+        return {"error": f"Every page I tried blocked me ({len(blocked)} sites).", "url": search_url}
     except Exception as e:
         return {"error": str(e), "url": query}
-    finally:
-        pass
 
 
 async def visit(url: str, max_chars: int = 5000) -> dict:
@@ -91,20 +119,11 @@ async def visit(url: str, max_chars: int = 5000) -> dict:
     ctx = await _get_browser()
     page = await ctx.new_page()
     try:
-        await page.goto(url, timeout=15000, wait_until="domcontentloaded")
-        text = await page.evaluate("""
-            () => {
-                const selectors = ['main', 'article', '[role="main"]', '.content', '#content', 'body'];
-                for (const sel of selectors) {
-                    const el = document.querySelector(sel);
-                    if (el && el.innerText.trim().length > 100) {
-                        return el.innerText.trim();
-                    }
-                }
-                return document.body?.innerText?.trim() || '';
-            }
-        """)
+        resp = await page.goto(url, timeout=15000, wait_until="domcontentloaded")
+        text = await page.evaluate(_READ_TEXT)
         title = await page.title()
+        if _looks_blocked(resp.status if resp else None, title, text):
+            return {"error": "The site blocked me.", "url": url}
         return {"title": title, "url": url, "content": text[:max_chars]}
     except Exception as e:
         return {"error": str(e), "url": url}
